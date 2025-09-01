@@ -102,6 +102,7 @@ export class SolapiNode implements INodeType {
 				displayName: 'Resource',
 				name: 'resource',
 				type: 'options',
+				noDataExpression: true,
 				default: 'message',
 				options: [
 					{
@@ -114,6 +115,7 @@ export class SolapiNode implements INodeType {
 				displayName: 'Operation',
 				name: 'operation',
 				type: 'options',
+				noDataExpression: true,
 				displayOptions: {
 					show: {
 						resource: ['message'],
@@ -122,34 +124,39 @@ export class SolapiNode implements INodeType {
 				default: 'sendText',
 				options: [
 					{
-						name: 'Send Text Message',
-						value: 'sendText',
-						description: 'Send SMS/LMS/MMS via Solapi',
-					},
-					{
-						name: 'Send Kakao AlimTalk',
-						value: 'sendKakaoATA',
-						description: 'Send Kakao AlimTalk (template-based)',
-					},
-					{
-						name: 'Send Kakao FriendTalk',
-						value: 'sendKakaoCTA',
-						description: 'Send Kakao FriendTalk',
-					},
-					{
-						name: 'On Message Report (Single)',
-						value: 'onMessageReport',
-						description: 'Trigger on SINGLE-REPORT events',
+						name: 'On Commerce Action',
+						value: 'onCommerceAction',
+						description: 'Trigger on Commerce Action events',
+						action: 'On commerce action a message',
 					},
 					{
 						name: 'On Group Report',
 						value: 'onGroupReport',
 						description: 'Trigger on GROUP-REPORT events',
+						action: 'On group report a message',
 					},
 					{
-						name: 'On Commerce Action',
-						value: 'onCommerceAction',
-						description: 'Trigger on Commerce Action events',
+						name: 'On Message Report (Single)',
+						value: 'onMessageReport',
+						description: 'Trigger on SINGLE-REPORT events',
+						action: 'On message report single a message',
+					},
+					{
+						name: 'Send Kakao AlimTalk',
+						value: 'sendKakaoATA',
+						description: 'Send Kakao AlimTalk (template-based)',
+						action: 'Send kakao alim talk a message',
+					},
+					{
+						name: 'Send Kakao FriendTalk',
+						value: 'sendKakaoCTA',
+						action: 'Send kakao friend talk a message',
+					},
+					{
+						name: 'Send Text Message',
+						value: 'sendText',
+						description: 'Send SMS/LMS/MMS via Solapi',
+						action: 'Send text message a message',
 					},
 				],
 			},
@@ -171,9 +178,10 @@ export class SolapiNode implements INodeType {
 			},
 			// Text Message fields
 			{
-				displayName: 'From (Registered Sender ID)',
+				displayName: 'From (Registered Sender ID) Name or ID',
 				name: 'from',
 				type: 'options',
+				description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 				required: true,
 				typeOptions: {
 					loadOptionsMethod: 'getActiveSenderIds',
@@ -203,7 +211,6 @@ export class SolapiNode implements INodeType {
 				displayName: 'Subject',
 				name: 'subject',
 				type: 'string',
-				required: false,
 				displayOptions: {
 					show: {
 						operation: ['sendText'],
@@ -213,10 +220,10 @@ export class SolapiNode implements INodeType {
 				default: '',
 			},
 			{
-				displayName: 'Image ID (optional)',
+				displayName: 'Image ID (Optional) Name or ID',
 				name: 'imageId',
 				type: 'options',
-				required: false,
+				description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 				typeOptions: {
 					loadOptionsMethod: 'getMmsImages',
 				},
@@ -233,7 +240,6 @@ export class SolapiNode implements INodeType {
 				name: 'country',
 				type: 'string',
 				default: '82',
-				required: false,
 				displayOptions: {
 					show: {
 						operation: ['sendText', 'sendKakaoATA', 'sendKakaoCTA'],
@@ -243,9 +249,10 @@ export class SolapiNode implements INodeType {
 			},
 			// Kakao ATA fields
 			{
-				displayName: 'Kakao Channel',
+				displayName: 'Kakao Channel Name or ID',
 				name: 'channelId',
 				type: 'options',
+				description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 				required: true,
 				displayOptions: {
 					show: { operation: ['sendKakaoATA', 'sendKakaoCTA'], resource: ['message'] },
@@ -254,9 +261,10 @@ export class SolapiNode implements INodeType {
 				default: '',
 			},
 			{
-				displayName: 'Kakao Template',
+				displayName: 'Kakao Template Name or ID',
 				name: 'templateId',
 				type: 'options',
+				description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 				required: true,
 				displayOptions: {
 					show: { operation: ['sendKakaoATA'], resource: ['message'] },
@@ -269,17 +277,16 @@ export class SolapiNode implements INodeType {
 				name: 'variablesJson',
 				type: 'string',
 				description: '예: {"name":"홍길동","code":"1234"}',
-				required: false,
 				displayOptions: {
 					show: { operation: ['sendKakaoATA'], resource: ['message'] },
 				},
 				default: '',
 			},
 			{
-				displayName: 'From (Text replacement sender, optional)',
+				displayName: 'From (Text Replacement Sender, Optional) Name or ID',
 				name: 'fromForKakao',
 				type: 'options',
-				required: false,
+				description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 				typeOptions: {
 					loadOptionsMethod: 'getActiveSenderIds',
 				},
@@ -293,17 +300,16 @@ export class SolapiNode implements INodeType {
 				displayName: 'AD Flag',
 				name: 'adFlag',
 				type: 'boolean',
-				required: false,
 				displayOptions: {
 					show: { operation: ['sendKakaoCTA'], resource: ['message'] },
 				},
 				default: false,
 			},
 			{
-				displayName: 'CTA Image ID (optional)',
+				displayName: 'CTA Image ID (Optional) Name or ID',
 				name: 'kakaoImageId',
 				type: 'options',
-				required: false,
+				description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 				typeOptions: { loadOptionsMethod: 'getKakaoImages' },
 				displayOptions: {
 					show: { operation: ['sendKakaoCTA'], resource: ['message'] },
@@ -315,7 +321,6 @@ export class SolapiNode implements INodeType {
 				name: 'buttonsJson',
 				type: 'string',
 				description: '예: [{"buttonName":"홈","buttonType":"WL","linkMo":"https://..."}]',
-				required: false,
 				displayOptions: {
 					show: { operation: ['sendKakaoCTA'], resource: ['message'] },
 				},
@@ -323,9 +328,10 @@ export class SolapiNode implements INodeType {
 			},
 			// Commerce Hook fields
 			{
-				displayName: 'Commerce Hook',
+				displayName: 'Commerce Hook Name or ID',
 				name: 'hookId',
 				type: 'options',
+				description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 				required: true,
 				displayOptions: { show: { operation: ['onCommerceAction'], resource: ['message'] } },
 				typeOptions: { loadOptionsMethod: 'getCommerceHooks' },
@@ -641,3 +647,5 @@ export class SolapiNode implements INodeType {
 		return { workflowData: [items] };
 	}
 }
+
+

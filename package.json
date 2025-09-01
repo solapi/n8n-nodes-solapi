@@ -1,19 +1,19 @@
 {
   "name": "n8n-nodes-solapi",
-  "version": "0.1.0",
-  "description": "",
+  "version": "0.2.0",
+  "description": "This is a community node for easily using Solapi message/Kakao/commerce webhooks in n8n.",
   "keywords": [
     "n8n-community-node-package"
   ],
   "license": "MIT",
   "homepage": "",
   "author": {
-    "name": "",
-    "email": ""
+    "name": "SOLAPI",
+    "email": "contact@solapi.com"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/solapi/n8n-nodes-solapi.git"
+    "url": "git+https://github.com/solapi/n8n-nodes-solapi.git"
   },
   "engines": {
     "node": ">=20.15"
@@ -37,7 +37,7 @@
       "dist/credentials/SolapiOAuth2Api.credentials.js"
     ],
     "nodes": [
-      "dist/nodes/SolapiNode/SolapiNode.node.js"
+      "dist/nodes/Solapi/Solapi.node.js"
     ]
   },
   "devDependencies": {
