@@ -5,7 +5,7 @@
 ## 설치
 
 - n8n Community Nodes에서 설치
-  - n8n UI → Settings → Community Nodes → Install → `nurigo/n8n-nodes-solapi` 입력
+  - n8n UI → Settings → Community Nodes → Install → `n8n-nodes-solapi` 입력
 - 또는 수동 설치
   - 프로젝트에 패키지 설치 후 n8n 재기동
 

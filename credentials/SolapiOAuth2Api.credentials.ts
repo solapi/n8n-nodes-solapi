@@ -7,7 +7,7 @@ import type {
 export class SolapiOAuth2Api implements ICredentialType {
     name = 'solapiOAuth2Api';
     displayName = 'Solapi OAuth2 API';
-    documentationUrl = 'https://docs.solapi.com/';
+    documentationUrl = 'https://developers.solapi.com/';
 
     properties: INodeProperties[] = [
         {
