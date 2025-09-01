@@ -299,9 +299,10 @@ export class Solapi implements INodeType {
 						name: 'variable',
 						values: [
 							{
-								displayName: 'Name',
+								displayName: 'Name or ID',
 								name: 'name',
 								type: 'options',
+								description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 								typeOptions: {
 									loadOptionsMethod: 'getKakaoTplVariables',
 									loadOptionsDependsOn: ['channelId', 'templateId'],
