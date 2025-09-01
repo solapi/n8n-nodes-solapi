@@ -348,8 +348,17 @@ export class Solapi implements INodeType {
 						method: 'GET',
 						url: 'https://api.solapi.com/senderid/v1/numbers/active',
 						headers: { Accept: 'application/json' },
-					})) as string[];
-					return (res || []).map((num) => ({ name: num, value: num }));
+					})) as unknown;
+					let list: unknown = res;
+					if (typeof list === 'string') {
+						try {
+							list = JSON.parse(list);
+						} catch {}
+					}
+					const arr = Array.isArray(list) ? (list as unknown[]) : [];
+					return arr
+						.filter((v) => typeof v === 'string' && (v as string).trim())
+						.map((num) => ({ name: num as string, value: num as string }));
 				} catch (e) {
 					return [];
 				}
