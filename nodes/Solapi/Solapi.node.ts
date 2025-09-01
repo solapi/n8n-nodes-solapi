@@ -45,7 +45,7 @@ async function requestSolapi(
 	return ctx.helpers.requestWithAuthentication.call(ctx, 'solapiOAuth2Api', options);
 }
 
-export class SolapiNode implements INodeType {
+export class Solapi implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Solapi',
 		name: 'solapi',
