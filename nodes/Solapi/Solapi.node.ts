@@ -30,6 +30,17 @@ async function requestSolapi(
 			? ctx.getNodeParameter?.('authentication', itemIndex)
 			: ctx.getCurrentNodeParameter?.('authentication')) || 'oAuth2';
 
+	const parseIfString = (input: unknown): unknown => {
+		if (typeof input === 'string') {
+			try {
+				return JSON.parse(input);
+			} catch {
+				return input;
+			}
+		}
+		return input;
+	};
+
 	if (authType === 'apiKey') {
 		const credentials = await ctx.getCredentials('solapiApiKeyApi');
 		const apiKey = String(credentials.apiKey || '');
@@ -39,10 +50,12 @@ async function requestSolapi(
 			...(options.headers as Record<string, string> | undefined),
 			Authorization: authHeader,
 		};
-		return ctx.helpers.request.call(ctx, { ...options, headers: mergedHeaders });
+		const result = (await ctx.helpers.request.call(ctx, { ...options, headers: mergedHeaders })) as unknown;
+		return parseIfString(result);
 	}
 
-	return ctx.helpers.requestWithAuthentication.call(ctx, 'solapiOAuth2Api', options);
+	const result = (await ctx.helpers.requestWithAuthentication.call(ctx, 'solapiOAuth2Api', options)) as unknown;
+	return parseIfString(result);
 }
 
 export class Solapi implements INodeType {
@@ -269,18 +282,42 @@ export class Solapi implements INodeType {
 				displayOptions: {
 					show: { operation: ['sendKakaoATA'], resource: ['message'] },
 				},
-				typeOptions: { loadOptionsMethod: 'getKakaoTpls' },
+				typeOptions: { loadOptionsMethod: 'getKakaoTpls', loadOptionsDependsOn: ['channelId'] },
 				default: '',
 			},
 			{
-				displayName: 'Template Variables (JSON)',
-				name: 'variablesJson',
-				type: 'string',
-				description: '예: {"name":"홍길동","code":"1234"}',
+				displayName: 'Template Variables',
+				name: 'variables',
+				type: 'fixedCollection',
 				displayOptions: {
 					show: { operation: ['sendKakaoATA'], resource: ['message'] },
 				},
-				default: '',
+				typeOptions: { multipleValues: true },
+				options: [
+					{
+						displayName: 'Variable',
+						name: 'variable',
+						values: [
+							{
+								displayName: 'Name',
+								name: 'name',
+								type: 'options',
+								typeOptions: {
+									loadOptionsMethod: 'getKakaoTplVariables',
+									loadOptionsDependsOn: ['channelId', 'templateId'],
+								},
+								default: '',
+							},
+							{
+								displayName: 'Value',
+								name: 'value',
+								type: 'string',
+								default: '',
+							},
+						],
+					},
+				],
+				default: {},
 			},
 			{
 				displayName: 'From (Text Replacement Sender, Optional) Name or ID',
@@ -398,9 +435,9 @@ export class Solapi implements INodeType {
 						url: 'https://api.solapi.com/kakao/v2/channels',
 						qs: { limit: 200 },
 						headers: { Accept: 'application/json' },
-					})) as { channelList?: Array<{ pfId?: string; channelId?: string; name?: string }> };
+					})) as { channelList?: Array<{ channelId?: string; searchId: string, channelName?: string }> };
 					const list = res?.channelList || [];
-					return list.map((c) => ({ name: `${c.name || c.channelId || c.pfId}`, value: c.pfId || c.channelId || '' }));
+					return list.map((c) => ({ name: `${c.channelName || c.searchId || c.channelId}`, value: c.channelId || '' }));
 				} catch (e) {
 					return [];
 				}
@@ -414,8 +451,26 @@ export class Solapi implements INodeType {
 						url: 'https://api.solapi.com/kakao/v1/templates/sendable',
 						qs: { pfId },
 						headers: { Accept: 'application/json' },
-					})) as Array<{ templateId?: string; name?: string }>;
-					return (res || []).map((t) => ({ name: `${t.name}`, value: t.templateId || '' }));
+					})) as Array<{ templateId?: string; name?: string; variables?: Array<{ name?: string }> }>;
+					return (res || []).map((t) => ({ name: `${t.name}`, value: t.templateId || '', description: t.variables && t.variables.length > 0 ? `vars: ${t.variables.map(v => v.name).join(', ')}` : undefined }));
+				} catch (e) {
+					return [];
+				}
+			},
+			async getKakaoTplVariables(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+				try {
+					const pfId = (this.getCurrentNodeParameter('channelId') as string) || '';
+					const templateId = (this.getCurrentNodeParameter('templateId') as string) || '';
+					if (!pfId || !templateId) return [];
+					const res = (await requestSolapi(this, {
+						method: 'GET',
+						url: 'https://api.solapi.com/kakao/v1/templates/sendable',
+						qs: { pfId },
+						headers: { Accept: 'application/json' },
+					})) as Array<{ templateId?: string; variables?: Array<{ name?: string }> }>;
+					const found = (res || []).find(t => t.templateId === templateId);
+					const vars = found?.variables || [];
+					return vars.map(v => ({ name: v.name || '', value: v.name || '' }));
 				} catch (e) {
 					return [];
 				}
@@ -531,7 +586,7 @@ export class Solapi implements INodeType {
 						url: 'https://api.solapi.com/messages/v4/send-many/detail',
 						body: {
 							messages,
-							agent: { appId: 'y6GIXdn8gfVy' },
+							agent: { appId: '9fEGAmn6N2vt' },
 						},
 						headers: {
 							'Content-Type': 'application/json',
@@ -556,6 +611,20 @@ export class Solapi implements INodeType {
 						variables = variablesJson ? (JSON.parse(variablesJson) as Record<string, string>) : undefined;
 					} catch {}
 
+					// Assemble variables from dynamic fields if provided
+					const variablesCollection = this.getNodeParameter('variables', i, {}) as Record<string, any>;
+					if (variablesCollection && Array.isArray((variablesCollection as any).variable)) {
+						const arr = (variablesCollection as any).variable as Array<{ name?: string; value?: string }>;
+						const kv: Record<string, string> = {};
+						for (const entry of arr) {
+							if (!entry) continue;
+							const key = (entry.name || '').trim();
+							const val = (entry.value || '').trim();
+							if (key) kv[key] = val;
+						}
+						if (Object.keys(kv).length > 0) variables = { ...(variables || {}), ...kv };
+					}
+
 					const disableSms = !from;
 					const recipients = String(toRaw)
 						.replace(/\n/g, ',')
@@ -564,7 +633,9 @@ export class Solapi implements INodeType {
 						.filter((v) => v);
 
 					const kakaoOptions: Record<string, unknown> = { pfId: channelId, templateId, disableSms };
-					if (variables && Object.keys(variables).length > 0) kakaoOptions.variables = variables;
+					if (variables && Object.keys(variables).length > 0) {
+						kakaoOptions.variables = variables;
+					}
 
 					const messages = recipients.map((to) => {
 						const msg: Record<string, unknown> = { to, country, kakaoOptions };
@@ -575,7 +646,7 @@ export class Solapi implements INodeType {
 					const response = await requestSolapi(this, {
 						method: 'POST',
 						url: 'https://api.solapi.com/messages/v4/send-many/detail',
-						body: { messages, agent: { appId: 'y6GIXdn8gfVy' } },
+						body: { messages, agent: { appId: '9fEGAmn6N2vt' } },
 						headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
 					}, i);
 
@@ -619,7 +690,7 @@ export class Solapi implements INodeType {
 					const response = await requestSolapi(this, {
 						method: 'POST',
 						url: 'https://api.solapi.com/messages/v4/send-many/detail',
-						body: { messages, agent: { appId: 'y6GIXdn8gfVy' } },
+						body: { messages, agent: { appId: '9fEGAmn6N2vt' } },
 						headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
 					}, i);
 
