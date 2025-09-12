@@ -37,7 +37,8 @@
       "dist/credentials/SolapiOAuth2Api.credentials.js"
     ],
     "nodes": [
-      "dist/nodes/Solapi/Solapi.node.js"
+      "dist/nodes/Solapi/Solapi.node.js",
+      "dist/nodes/Solapi/SolapiTrigger.node.js"
     ]
   },
   "devDependencies": {

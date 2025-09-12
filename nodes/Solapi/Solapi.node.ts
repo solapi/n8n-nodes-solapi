@@ -5,9 +5,6 @@ import type {
 	INodeTypeDescription,
 	ILoadOptionsFunctions,
 	INodePropertyOptions,
-	IHookFunctions,
-	IWebhookFunctions,
-	IWebhookResponseData,
 } from 'n8n-workflow';
 import { NodeConnectionType, NodeOperationError } from 'n8n-workflow';
 import { createHmac, randomBytes } from 'crypto';
@@ -92,14 +89,6 @@ export class Solapi implements INodeType {
 				},
 			},
 		],
-		webhooks: [
-			{
-				name: 'default',
-				httpMethod: 'POST',
-				responseMode: 'onReceived',
-				path: 'solapi',
-			},
-		],
 		properties: [
 			{
 				displayName: 'Authentication',
@@ -136,24 +125,6 @@ export class Solapi implements INodeType {
 				},
 				default: 'sendText',
 				options: [
-					{
-						name: 'On Commerce Action',
-						value: 'onCommerceAction',
-						description: 'Trigger on Commerce Action events',
-						action: 'On commerce action a message',
-					},
-					{
-						name: 'On Group Report',
-						value: 'onGroupReport',
-						description: 'Trigger on GROUP-REPORT events',
-						action: 'On group report a message',
-					},
-					{
-						name: 'On Message Report (Single)',
-						value: 'onMessageReport',
-						description: 'Trigger on SINGLE-REPORT events',
-						action: 'On message report single a message',
-					},
 					{
 						name: 'Send Kakao AlimTalk',
 						value: 'sendKakaoATA',
@@ -364,17 +335,6 @@ export class Solapi implements INodeType {
 				},
 				default: '',
 			},
-			// Commerce Hook fields
-			{
-				displayName: 'Commerce Hook Name or ID',
-				name: 'hookId',
-				type: 'options',
-				description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
-				required: true,
-				displayOptions: { show: { operation: ['onCommerceAction'], resource: ['message'] } },
-				typeOptions: { loadOptionsMethod: 'getCommerceHooks' },
-				default: '',
-			},
 		],
 	};
 
@@ -451,75 +411,6 @@ export class Solapi implements INodeType {
 				const found = (res || []).find(t => t.templateId === templateId);
 				const vars = found?.variables || [];
 				return vars.map(v => ({ name: v.name || '', value: v.name || '' }));
-			},
-			async getCommerceHooks(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-				const res = (await requestSolapi(this, {
-					method: 'GET',
-					url: 'https://api.solapi.com/commerce/v1/hooks',
-					qs: { noWebhookSetup: true, actionId: 'EXTERNAL-WEBHOOK', limit: 500 },
-					headers: { Accept: 'application/json' },
-				})) as { list?: Array<{ hookId?: string; name?: string }> };
-				const list = (res as any)?.list || [];
-				return list.map((h: any) => ({ name: h.name || h.hookId, value: h.hookId }));
-			},
-		},
-		webhook: {
-			default: {
-				async checkExists(this: IHookFunctions): Promise<boolean> {
-					const operation = (this.getNodeParameter('operation', 0) as string) || '';
-					if (['onMessageReport', 'onGroupReport', 'onCommerceAction'].indexOf(operation) === -1) return true;
-					return false;
-				},
-				async create(this: IHookFunctions): Promise<boolean> {
-					const operation = (this.getNodeParameter('operation', 0) as string) || '';
-					if (['onMessageReport', 'onGroupReport', 'onCommerceAction'].indexOf(operation) === -1) return true;
-					const url = this.getNodeWebhookUrl('default');
-					const isTemporary = this.getMode && this.getMode() === 'manual';
-					if (operation === 'onCommerceAction') {
-						const hookId = this.getNodeParameter('hookId', 0) as string;
-						await requestSolapi(this, {
-							method: 'POST',
-							url: `https://api.solapi.com/commerce/v1/hooks/${hookId}/connect-webhook`,
-							body: { name: 'n8n', webhookUrl: url, isTemporary },
-							headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-						});
-						const data = this.getWorkflowStaticData('node');
-						data.commerceHookId = hookId;
-						return true;
-					}
-					const eventId = operation === 'onMessageReport' ? 'SINGLE-REPORT' : 'GROUP-REPORT';
-					const response = (await requestSolapi(this, {
-						method: 'POST',
-						url: 'https://api.solapi.com/webhook/v1/outgoing',
-						body: { eventId, url, name: 'n8n', isTemporary },
-						headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-					})) as { webhookId?: string };
-					const data = this.getWorkflowStaticData('node');
-					data.webhookId = (response as any).webhookId || '';
-					return true;
-				},
-				async delete(this: IHookFunctions): Promise<boolean> {
-					const data = this.getWorkflowStaticData('node') as { webhookId?: string; commerceHookId?: string };
-					if (data.commerceHookId) {
-						try {
-							await requestSolapi(this, {
-								method: 'POST',
-								url: `https://api.solapi.com/commerce/v1/hooks/${data.commerceHookId}/disconnect-webhook`,
-								headers: { Accept: 'application/json' },
-							});
-						} catch {}
-					}
-					if (data.webhookId) {
-						try {
-							await requestSolapi(this, {
-								method: 'DELETE',
-								url: `https://api.solapi.com/webhook/v1/outgoing/${data.webhookId}`,
-								headers: { Accept: 'application/json' },
-							});
-						} catch {}
-					}
-					return true;
-				},
 			},
 		},
 	};
@@ -684,21 +575,7 @@ export class Solapi implements INodeType {
 		return [returnData];
 	}
 
-	async webhook(this: IWebhookFunctions): Promise<IWebhookResponseData> {
-		const operation = (this.getNodeParameter('operation', 0) as string) || '';
-		if (['onMessageReport', 'onGroupReport', 'onCommerceAction'].indexOf(operation) === -1) {
-			return { noWebhookResponse: true };
-		}
-		const req = this.getRequestObject();
-		const body = req.body as unknown;
-		const items: INodeExecutionData[] = [];
-		if (Array.isArray(body)) {
-			for (const entry of body) items.push({ json: (entry as any) as Record<string, any> });
-		} else if (body && typeof body === 'object') {
-			items.push({ json: (body as any) as Record<string, any> });
-		}
-		return { workflowData: [items] };
-	}
+
 }
 
 
