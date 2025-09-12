@@ -381,114 +381,86 @@ export class Solapi implements INodeType {
 	methods = {
 		loadOptions: {
 			async getActiveSenderIds(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-				try {
-					const res = (await requestSolapi(this, {
-						method: 'GET',
-						url: 'https://api.solapi.com/senderid/v1/numbers/active',
-						headers: { Accept: 'application/json' },
-					})) as unknown;
-					let list: unknown = res;
-					if (typeof list === 'string') {
-						try {
-							list = JSON.parse(list);
-						} catch {}
-					}
-					const arr = Array.isArray(list) ? (list as unknown[]) : [];
-					return arr
-						.filter((v) => typeof v === 'string' && (v as string).trim())
-						.map((num) => ({ name: num as string, value: num as string }));
-				} catch (e) {
-					return [];
+				const res = (await requestSolapi(this, {
+					method: 'GET',
+					url: 'https://api.solapi.com/senderid/v1/numbers/active',
+					headers: { Accept: 'application/json' },
+				})) as unknown;
+				let list: unknown = res;
+				if (typeof list === 'string') {
+					try {
+						list = JSON.parse(list);
+					} catch {}
 				}
+				const arr = Array.isArray(list) ? (list as unknown[]) : [];
+				return arr
+					.filter((v) => typeof v === 'string' && (v as string).trim())
+					.map((num) => ({ name: num as string, value: num as string }));
 			},
 			async getMmsImages(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-				try {
-					const res = (await requestSolapi(this, {
-						method: 'GET',
-						url: 'https://api.solapi.com/storage/v1/files',
-						qs: { type: 'MMS', limit: 500 },
-						headers: { Accept: 'application/json' },
-					})) as { fileList?: Array<{ fileId?: string; name?: string }> };
-					const list = res?.fileList || [];
-					return list.map((f) => ({ name: f.name || f.fileId || '', value: f.fileId || '' }));
-				} catch (e) {
-					return [];
-				}
+				const res = (await requestSolapi(this, {
+					method: 'GET',
+					url: 'https://api.solapi.com/storage/v1/files',
+					qs: { type: 'MMS', limit: 500 },
+					headers: { Accept: 'application/json' },
+				})) as { fileList?: Array<{ fileId?: string; name?: string }> };
+				const list = res?.fileList || [];
+				return list.map((f) => ({ name: f.name || f.fileId || '', value: f.fileId || '' }));
 			},
 			async getKakaoImages(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-				try {
-					const res = (await requestSolapi(this, {
-						method: 'GET',
-						url: 'https://api.solapi.com/storage/v1/files',
-						qs: { type: 'KAKAO', limit: 500 },
-						headers: { Accept: 'application/json' },
-					})) as { fileList?: Array<{ fileId?: string; name?: string }> };
-					const list = res?.fileList || [];
-					return list.map((f) => ({ name: f.name || f.fileId || '', value: f.fileId || '' }));
-				} catch (e) {
-					return [];
-				}
+				const res = (await requestSolapi(this, {
+					method: 'GET',
+					url: 'https://api.solapi.com/storage/v1/files',
+					qs: { type: 'KAKAO', limit: 500 },
+					headers: { Accept: 'application/json' },
+				})) as { fileList?: Array<{ fileId?: string; name?: string }> };
+				const list = res?.fileList || [];
+				return list.map((f) => ({ name: f.name || f.fileId || '', value: f.fileId || '' }));
 			},
 			async getKakaoChannels(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-				try {
-					const res = (await requestSolapi(this, {
-						method: 'GET',
-						url: 'https://api.solapi.com/kakao/v2/channels',
-						qs: { limit: 200 },
-						headers: { Accept: 'application/json' },
-					})) as { channelList?: Array<{ channelId?: string; searchId: string, channelName?: string }> };
-					const list = res?.channelList || [];
-					return list.map((c) => ({ name: `${c.channelName || c.searchId || c.channelId}`, value: c.channelId || '' }));
-				} catch (e) {
-					return [];
-				}
+				const res = (await requestSolapi(this, {
+					method: 'GET',
+					url: 'https://api.solapi.com/kakao/v2/channels',
+					qs: { limit: 200 },
+					headers: { Accept: 'application/json' },
+				})) as { channelList?: Array<{ channelId?: string; searchId: string, channelName?: string }> };
+				const list = res?.channelList || [];
+				return list.map((c) => ({ name: `${c.channelName || c.searchId || c.channelId}`, value: c.channelId || '' }));
 			},
 			async getKakaoTpls(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-				try {
-					const pfId = (this.getCurrentNodeParameter('channelId') as string) || '';
-					if (!pfId) return [];
-					const res = (await requestSolapi(this, {
-						method: 'GET',
-						url: 'https://api.solapi.com/kakao/v1/templates/sendable',
-						qs: { pfId },
-						headers: { Accept: 'application/json' },
-					})) as Array<{ templateId?: string; name?: string; variables?: Array<{ name?: string }> }>;
-					return (res || []).map((t) => ({ name: `${t.name}`, value: t.templateId || '', description: t.variables && t.variables.length > 0 ? `vars: ${t.variables.map(v => v.name).join(', ')}` : undefined }));
-				} catch (e) {
-					return [];
-				}
+				const pfId = (this.getCurrentNodeParameter('channelId') as string) || '';
+				if (!pfId) return [];
+				const res = (await requestSolapi(this, {
+					method: 'GET',
+					url: 'https://api.solapi.com/kakao/v1/templates/sendable',
+					qs: { pfId },
+					headers: { Accept: 'application/json' },
+				})) as Array<{ templateId?: string; name?: string; variables?: Array<{ name?: string }> }>;
+				return (res || []).map((t) => ({ name: `${t.name}`, value: t.templateId || '', description: t.variables && t.variables.length > 0 ? `vars: ${t.variables.map(v => v.name).join(', ')}` : undefined }));
 			},
 			async getKakaoTplVariables(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-				try {
-					const pfId = (this.getCurrentNodeParameter('channelId') as string) || '';
-					const templateId = (this.getCurrentNodeParameter('templateId') as string) || '';
-					if (!pfId || !templateId) return [];
-					const res = (await requestSolapi(this, {
-						method: 'GET',
-						url: 'https://api.solapi.com/kakao/v1/templates/sendable',
-						qs: { pfId },
-						headers: { Accept: 'application/json' },
-					})) as Array<{ templateId?: string; variables?: Array<{ name?: string }> }>;
-					const found = (res || []).find(t => t.templateId === templateId);
-					const vars = found?.variables || [];
-					return vars.map(v => ({ name: v.name || '', value: v.name || '' }));
-				} catch (e) {
-					return [];
-				}
+				const pfId = (this.getCurrentNodeParameter('channelId') as string) || '';
+				const templateId = (this.getCurrentNodeParameter('templateId') as string) || '';
+				if (!pfId || !templateId) return [];
+				const res = (await requestSolapi(this, {
+					method: 'GET',
+					url: 'https://api.solapi.com/kakao/v1/templates/sendable',
+					qs: { pfId },
+					headers: { Accept: 'application/json' },
+				})) as Array<{ templateId?: string; variables?: Array<{ name?: string }> }>;
+				const found = (res || []).find(t => t.templateId === templateId);
+				const vars = found?.variables || [];
+				return vars.map(v => ({ name: v.name || '', value: v.name || '' }));
 			},
 			async getCommerceHooks(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-				try {
-					const res = (await requestSolapi(this, {
-						method: 'GET',
-						url: 'https://api.solapi.com/commerce/v1/hooks',
-						qs: { noWebhookSetup: true, actionId: 'EXTERNAL-WEBHOOK', limit: 500 },
-						headers: { Accept: 'application/json' },
-					})) as { list?: Array<{ hookId?: string; name?: string }> };
-					const list = (res as any)?.list || [];
-					return list.map((h: any) => ({ name: h.name || h.hookId, value: h.hookId }));
-				} catch (e) {
-					return [];
-				}
+				const res = (await requestSolapi(this, {
+					method: 'GET',
+					url: 'https://api.solapi.com/commerce/v1/hooks',
+					qs: { noWebhookSetup: true, actionId: 'EXTERNAL-WEBHOOK', limit: 500 },
+					headers: { Accept: 'application/json' },
+				})) as { list?: Array<{ hookId?: string; name?: string }> };
+				const list = (res as any)?.list || [];
+				return list.map((h: any) => ({ name: h.name || h.hookId, value: h.hookId }));
 			},
 		},
 		webhook: {
