@@ -36,7 +36,7 @@ async function requestSolapi(ctx: any, options: Record<string, unknown>): Promis
 			...(options.headers as Record<string, string> | undefined),
 			Authorization: authHeader,
 		};
-		const result = (await ctx.helpers.request.call(ctx, { ...options, headers: mergedHeaders })) as unknown;
+		const result = (await ctx.helpers.httpRequest.call(ctx, { ...options, headers: mergedHeaders })) as unknown;
 		return parseIfString(result);
 	}
 
@@ -122,7 +122,7 @@ export class SolapiTrigger implements INodeType {
 					const url = this.getNodeWebhookUrl('default');
 					const eventType = (this.getNodeParameter('eventType', 0) as string) || 'commerceAction';
 					const data = this.getWorkflowStaticData('node') as { webhookId?: string; commerceHookId?: string; webhookUrl?: string };
-					try { console.log('[Solapi][Trigger] checkExists invoked', { eventType, url }); } catch {}
+
 					if (eventType === 'commerceAction') {
 						const hookId = (this.getNodeParameter('hookId', 0) as string) || '';
 						if (hookId && data.commerceHookId === hookId && data.webhookUrl === url) return true;
@@ -180,7 +180,7 @@ export class SolapiTrigger implements INodeType {
 					const url = this.getNodeWebhookUrl('default');
 					const isTemporary = this.getMode && this.getMode() === 'manual';
 					const eventType = (this.getNodeParameter('eventType', 0) as string) || 'commerceAction';
-					try { console.log('[Solapi][Trigger] create invoked', { eventType, url, isTemporary }); } catch {}
+
 					try {
 						if (eventType === 'commerceAction') {
 							const hookId = this.getNodeParameter('hookId', 0) as string;
@@ -193,7 +193,7 @@ export class SolapiTrigger implements INodeType {
 							const data = this.getWorkflowStaticData('node') as { commerceHookId?: string; webhookUrl?: string };
 							data.commerceHookId = hookId;
 							data.webhookUrl = url;
-							try { console.log('[Solapi][Trigger] create success (commerce)', { hookId }); } catch {}
+
 							return true;
 						}
 						const eventId = eventType === 'messageReport' ? 'SINGLE-REPORT' : 'GROUP-REPORT';
@@ -206,7 +206,7 @@ export class SolapiTrigger implements INodeType {
 						const data = this.getWorkflowStaticData('node') as { webhookId?: string; webhookUrl?: string };
 						data.webhookId = (response as any).webhookId || '';
 						data.webhookUrl = url;
-						try { console.log('[Solapi][Trigger] create success (report)', { webhookId: data.webhookId, eventId }); } catch {}
+
 						return true;
 					} catch (e) {
 						throw new NodeOperationError(this.getNode(), `Failed to create Solapi webhook: ${(e as any)?.message || 'unknown error'}`);
@@ -215,26 +215,19 @@ export class SolapiTrigger implements INodeType {
 				async delete(this: IHookFunctions): Promise<boolean> {
 					const data = this.getWorkflowStaticData('node') as { webhookId?: string; commerceHookId?: string };
 					if (data.commerceHookId) {
-						try {
-							try { console.log('[Solapi][Trigger] delete invoked (commerce)', { hookId: data.commerceHookId }); } catch {}
-							await requestSolapi(this, {
-								method: 'POST',
-								url: `https://api.solapi.com/commerce/v1/hooks/${data.commerceHookId}/disconnect-webhook`,
-								headers: { Accept: 'application/json' },
-							});
-							try { console.log('[Solapi][Trigger] delete success (commerce)', { hookId: data.commerceHookId }); } catch {}
-						} catch (e) { try { console.error('[Solapi][Trigger] delete error (commerce)', { hookId: data.commerceHookId, message: (e as any)?.message }); } catch {} }
+
+						await requestSolapi(this, {
+							method: 'POST',
+							url: `https://api.solapi.com/commerce/v1/hooks/${data.commerceHookId}/disconnect-webhook`,
+							headers: { Accept: 'application/json' },
+						});
 					}
 					if (data.webhookId) {
-						try {
-							try { console.log('[Solapi][Trigger] delete invoked (report)', { webhookId: data.webhookId }); } catch {}
-							await requestSolapi(this, {
-								method: 'DELETE',
-								url: `https://api.solapi.com/webhook/v1/outgoing/${data.webhookId}`,
-								headers: { Accept: 'application/json' },
-							});
-							try { console.log('[Solapi][Trigger] delete success (report)', { webhookId: data.webhookId }); } catch {}
-						} catch (e) { try { console.error('[Solapi][Trigger] delete error (report)', { webhookId: data.webhookId, message: (e as any)?.message }); } catch {} }
+						await requestSolapi(this, {
+							method: 'DELETE',
+							url: `https://api.solapi.com/webhook/v1/outgoing/${data.webhookId}`,
+							headers: { Accept: 'application/json' },
+						});
 					}
 					return true;
 				},
@@ -248,7 +241,7 @@ export class SolapiTrigger implements INodeType {
 				const url = this.getNodeWebhookUrl('default');
 				const eventType = (this.getNodeParameter('eventType', 0) as string) || 'commerceAction';
 				const data = this.getWorkflowStaticData('node') as { webhookId?: string; commerceHookId?: string; webhookUrl?: string };
-				try { console.log('[Solapi][Trigger] checkExists invoked', { eventType, url }); } catch {}
+
 				if (eventType === 'commerceAction') {
 					const hookId = (this.getNodeParameter('hookId', 0) as string) || '';
 					if (hookId && data.commerceHookId === hookId && data.webhookUrl === url) return true;
@@ -306,7 +299,7 @@ export class SolapiTrigger implements INodeType {
 				const url = this.getNodeWebhookUrl('default');
 				const isTemporary = this.getMode && this.getMode() === 'manual';
 				const eventType = (this.getNodeParameter('eventType', 0) as string) || 'commerceAction';
-				try { console.log('[Solapi][Trigger] create invoked', { eventType, url, isTemporary }); } catch {}
+
 				try {
 					if (eventType === 'commerceAction') {
 						const hookId = this.getNodeParameter('hookId', 0) as string;
@@ -319,7 +312,7 @@ export class SolapiTrigger implements INodeType {
 						const data = this.getWorkflowStaticData('node') as { commerceHookId?: string; webhookUrl?: string };
 						data.commerceHookId = hookId;
 						data.webhookUrl = url;
-						try { console.log('[Solapi][Trigger] create success (commerce)', { hookId }); } catch {}
+
 						return true;
 					}
 					const eventId = eventType === 'messageReport' ? 'SINGLE-REPORT' : 'GROUP-REPORT';
@@ -332,7 +325,7 @@ export class SolapiTrigger implements INodeType {
 					const data = this.getWorkflowStaticData('node') as { webhookId?: string; webhookUrl?: string };
 					data.webhookId = (response as any).webhookId || '';
 					data.webhookUrl = url;
-					try { console.log('[Solapi][Trigger] create success (report)', { webhookId: data.webhookId, eventId }); } catch {}
+
 					return true;
 				} catch (e) {
 					throw new NodeOperationError(this.getNode(), `Failed to create Solapi webhook: ${(e as any)?.message || 'unknown error'}`);
@@ -341,26 +334,18 @@ export class SolapiTrigger implements INodeType {
 			async delete(this: IHookFunctions): Promise<boolean> {
 				const data = this.getWorkflowStaticData('node') as { webhookId?: string; commerceHookId?: string };
 				if (data.commerceHookId) {
-					try {
-						try { console.log('[Solapi][Trigger] delete invoked (commerce)', { hookId: data.commerceHookId }); } catch {}
-						await requestSolapi(this, {
-							method: 'POST',
-							url: `https://api.solapi.com/commerce/v1/hooks/${data.commerceHookId}/disconnect-webhook`,
-							headers: { Accept: 'application/json' },
-						});
-						try { console.log('[Solapi][Trigger] delete success (commerce)', { hookId: data.commerceHookId }); } catch {}
-					} catch (e) { try { console.error('[Solapi][Trigger] delete error (commerce)', { hookId: data.commerceHookId, message: (e as any)?.message }); } catch {} }
+					await requestSolapi(this, {
+						method: 'POST',
+						url: `https://api.solapi.com/commerce/v1/hooks/${data.commerceHookId}/disconnect-webhook`,
+						headers: { Accept: 'application/json' },
+					});
 				}
 				if (data.webhookId) {
-					try {
-						try { console.log('[Solapi][Trigger] delete invoked (report)', { webhookId: data.webhookId }); } catch {}
-						await requestSolapi(this, {
-							method: 'DELETE',
-							url: `https://api.solapi.com/webhook/v1/outgoing/${data.webhookId}`,
-							headers: { Accept: 'application/json' },
-						});
-						try { console.log('[Solapi][Trigger] delete success (report)', { webhookId: data.webhookId }); } catch {}
-					} catch (e) { try { console.error('[Solapi][Trigger] delete error (report)', { webhookId: data.webhookId, message: (e as any)?.message }); } catch {} }
+					await requestSolapi(this, {
+						method: 'DELETE',
+						url: `https://api.solapi.com/webhook/v1/outgoing/${data.webhookId}`,
+						headers: { Accept: 'application/json' },
+					});
 				}
 				return true;
 			},

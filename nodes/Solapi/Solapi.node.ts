@@ -47,7 +47,7 @@ async function requestSolapi(
 			...(options.headers as Record<string, string> | undefined),
 			Authorization: authHeader,
 		};
-		const result = (await ctx.helpers.request.call(ctx, { ...options, headers: mergedHeaders })) as unknown;
+		const result = (await ctx.helpers.httpRequest.call(ctx, { ...options, headers: mergedHeaders })) as unknown;
 		return parseIfString(result);
 	}
 
@@ -150,7 +150,7 @@ export class Solapi implements INodeType {
 				name: 'to',
 				type: 'string',
 				placeholder: '01012341234,01056785678',
-				description: '쉼표(,)나 줄바꿈으로 여러 수신번호 입력',
+				description: 'Enter multiple phone numbers separated by commas',
 				required: true,
 				displayOptions: {
 					show: {
@@ -329,7 +329,7 @@ export class Solapi implements INodeType {
 				displayName: 'Buttons (JSON Array)',
 				name: 'buttonsJson',
 				type: 'string',
-				description: '예: [{"buttonName":"홈","buttonType":"WL","linkMo":"https://..."}]',
+				description: 'Example: [{"buttonName":"Homepage","buttonType":"WL","linkMo":"https://example.com"}]',
 				displayOptions: {
 					show: { operation: ['sendKakaoCTA'], resource: ['message'] },
 				},
@@ -458,7 +458,7 @@ export class Solapi implements INodeType {
 						},
 					}, i);
 
-					returnData.push({ json: (response as any).body ?? response });
+					returnData.push({ json: (response as any).body ?? response, pairedItem: i });
 					continue;
 				}
 
@@ -514,7 +514,7 @@ export class Solapi implements INodeType {
 						headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
 					}, i);
 
-					returnData.push({ json: (response as any).body ?? response });
+					returnData.push({ json: (response as any).body ?? response, pairedItem: i });
 					continue;
 				}
 
@@ -558,7 +558,7 @@ export class Solapi implements INodeType {
 						headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
 					}, i);
 
-					returnData.push({ json: (response as any).body ?? response });
+					returnData.push({ json: (response as any).body ?? response, pairedItem: i });
 					continue;
 				}
 
