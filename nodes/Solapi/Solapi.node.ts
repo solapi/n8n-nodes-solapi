@@ -7,53 +7,8 @@ import type {
 	INodePropertyOptions,
 } from 'n8n-workflow';
 import { NodeConnectionType, NodeOperationError } from 'n8n-workflow';
-import { createHmac, randomBytes } from 'crypto';
 
-function createSolapiAuthHeader(apiKey: string, apiSecret: string): string {
-	const dateTime = new Date().toISOString();
-	const salt = randomBytes(16).toString('hex');
-	const data = `${dateTime}${salt}`;
-	const signature = createHmac('sha256', apiSecret).update(data).digest('hex');
-	return `HMAC-SHA256 apiKey=${apiKey}, date=${dateTime}, salt=${salt}, signature=${signature}`;
-}
-
-async function requestSolapi(
-	ctx: any,
-	options: Record<string, unknown>,
-	itemIndex?: number,
-): Promise<unknown> {
-	const authType: string =
-		(typeof itemIndex === 'number'
-			? ctx.getNodeParameter?.('authentication', itemIndex)
-			: ctx.getCurrentNodeParameter?.('authentication')) || 'oAuth2';
-
-	const parseIfString = (input: unknown): unknown => {
-		if (typeof input === 'string') {
-			try {
-				return JSON.parse(input);
-			} catch {
-				return input;
-			}
-		}
-		return input;
-	};
-
-	if (authType === 'apiKey') {
-		const credentials = await ctx.getCredentials('solapiApiKeyApi');
-		const apiKey = String(credentials.apiKey || '');
-		const apiSecret = String(credentials.apiSecret || '');
-		const authHeader = createSolapiAuthHeader(apiKey, apiSecret);
-		const mergedHeaders = {
-			...(options.headers as Record<string, string> | undefined),
-			Authorization: authHeader,
-		};
-		const result = (await ctx.helpers.httpRequest.call(ctx, { ...options, headers: mergedHeaders })) as unknown;
-		return parseIfString(result);
-	}
-
-	const result = (await ctx.helpers.requestWithAuthentication.call(ctx, 'solapiOAuth2Api', options)) as unknown;
-	return parseIfString(result);
-}
+import { solapiApiRequest } from './GenericFunctions';
 
 export class Solapi implements INodeType {
 	description: INodeTypeDescription = {
@@ -341,11 +296,11 @@ export class Solapi implements INodeType {
 	methods = {
 		loadOptions: {
 			async getActiveSenderIds(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-				const res = (await requestSolapi(this, {
-					method: 'GET',
-					url: 'https://api.solapi.com/senderid/v1/numbers/active',
-					headers: { Accept: 'application/json' },
-				})) as unknown;
+				const res = await solapiApiRequest(
+					this,
+					'GET',
+					'/senderid/v1/numbers/active',
+				);
 				let list: unknown = res;
 				if (typeof list === 'string') {
 					try {
@@ -358,56 +313,61 @@ export class Solapi implements INodeType {
 					.map((num) => ({ name: num as string, value: num as string }));
 			},
 			async getMmsImages(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-				const res = (await requestSolapi(this, {
-					method: 'GET',
-					url: 'https://api.solapi.com/storage/v1/files',
-					qs: { type: 'MMS', limit: 500 },
-					headers: { Accept: 'application/json' },
-				})) as { fileList?: Array<{ fileId?: string; name?: string }> };
+				const res = (await solapiApiRequest(
+					this,
+					'GET',
+					'/storage/v1/files',
+					undefined,
+					{ type: 'MMS', limit: 500 },
+				)) as { fileList?: Array<{ fileId?: string; name?: string }> };
 				const list = res?.fileList || [];
 				return list.map((f) => ({ name: f.name || f.fileId || '', value: f.fileId || '' }));
 			},
 			async getKakaoImages(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-				const res = (await requestSolapi(this, {
-					method: 'GET',
-					url: 'https://api.solapi.com/storage/v1/files',
-					qs: { type: 'KAKAO', limit: 500 },
-					headers: { Accept: 'application/json' },
-				})) as { fileList?: Array<{ fileId?: string; name?: string }> };
+				const res = (await solapiApiRequest(
+					this,
+					'GET',
+					'/storage/v1/files',
+					undefined,
+					{ type: 'KAKAO', limit: 500 },
+				)) as { fileList?: Array<{ fileId?: string; name?: string }> };
 				const list = res?.fileList || [];
 				return list.map((f) => ({ name: f.name || f.fileId || '', value: f.fileId || '' }));
 			},
 			async getKakaoChannels(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-				const res = (await requestSolapi(this, {
-					method: 'GET',
-					url: 'https://api.solapi.com/kakao/v2/channels',
-					qs: { limit: 200 },
-					headers: { Accept: 'application/json' },
-				})) as { channelList?: Array<{ channelId?: string; searchId: string, channelName?: string }> };
+				const res = (await solapiApiRequest(
+					this,
+					'GET',
+					'/kakao/v2/channels',
+					undefined,
+					{ limit: 200 },
+				)) as { channelList?: Array<{ channelId?: string; searchId: string; channelName?: string }> };
 				const list = res?.channelList || [];
 				return list.map((c) => ({ name: `${c.channelName || c.searchId || c.channelId}`, value: c.channelId || '' }));
 			},
 			async getKakaoTpls(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
 				const pfId = (this.getCurrentNodeParameter('channelId') as string) || '';
 				if (!pfId) return [];
-				const res = (await requestSolapi(this, {
-					method: 'GET',
-					url: 'https://api.solapi.com/kakao/v1/templates/sendable',
-					qs: { pfId },
-					headers: { Accept: 'application/json' },
-				})) as Array<{ templateId?: string; name?: string; variables?: Array<{ name?: string }> }>;
+				const res = (await solapiApiRequest(
+					this,
+					'GET',
+					'/kakao/v1/templates/sendable',
+					undefined,
+					{ pfId },
+				)) as Array<{ templateId?: string; name?: string; variables?: Array<{ name?: string }> }>;
 				return (res || []).map((t) => ({ name: `${t.name}`, value: t.templateId || '', description: t.variables && t.variables.length > 0 ? `vars: ${t.variables.map(v => v.name).join(', ')}` : undefined }));
 			},
 			async getKakaoTplVariables(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
 				const pfId = (this.getCurrentNodeParameter('channelId') as string) || '';
 				const templateId = (this.getCurrentNodeParameter('templateId') as string) || '';
 				if (!pfId || !templateId) return [];
-				const res = (await requestSolapi(this, {
-					method: 'GET',
-					url: 'https://api.solapi.com/kakao/v1/templates/sendable',
-					qs: { pfId },
-					headers: { Accept: 'application/json' },
-				})) as Array<{ templateId?: string; variables?: Array<{ name?: string }> }>;
+				const res = (await solapiApiRequest(
+					this,
+					'GET',
+					'/kakao/v1/templates/sendable',
+					undefined,
+					{ pfId },
+				)) as Array<{ templateId?: string; variables?: Array<{ name?: string }> }>;
 				const found = (res || []).find(t => t.templateId === templateId);
 				const vars = found?.variables || [];
 				return vars.map(v => ({ name: v.name || '', value: v.name || '' }));
@@ -445,18 +405,18 @@ export class Solapi implements INodeType {
 						return msg;
 					});
 
-					const response = await requestSolapi(this, {
-						method: 'POST',
-						url: 'https://api.solapi.com/messages/v4/send-many/detail',
-						body: {
+					const response = await solapiApiRequest(
+						this,
+						'POST',
+						'/messages/v4/send-many/detail',
+						{
 							messages,
 							agent: { appId: '9fEGAmn6N2vt' },
 						},
-						headers: {
-							'Content-Type': 'application/json',
-							Accept: 'application/json',
-						},
-					}, i);
+						undefined,
+						undefined,
+						i,
+					);
 
 					returnData.push({ json: (response as any).body ?? response, pairedItem: i });
 					continue;
@@ -507,12 +467,15 @@ export class Solapi implements INodeType {
 						return msg;
 					});
 
-					const response = await requestSolapi(this, {
-						method: 'POST',
-						url: 'https://api.solapi.com/messages/v4/send-many/detail',
-						body: { messages, agent: { appId: '9fEGAmn6N2vt' } },
-						headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-					}, i);
+					const response = await solapiApiRequest(
+						this,
+						'POST',
+						'/messages/v4/send-many/detail',
+						{ messages, agent: { appId: '9fEGAmn6N2vt' } },
+						undefined,
+						undefined,
+						i,
+					);
 
 					returnData.push({ json: (response as any).body ?? response, pairedItem: i });
 					continue;
@@ -551,12 +514,15 @@ export class Solapi implements INodeType {
 						return msg;
 					});
 
-					const response = await requestSolapi(this, {
-						method: 'POST',
-						url: 'https://api.solapi.com/messages/v4/send-many/detail',
-						body: { messages, agent: { appId: '9fEGAmn6N2vt' } },
-						headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-					}, i);
+					const response = await solapiApiRequest(
+						this,
+						'POST',
+						'/messages/v4/send-many/detail',
+						{ messages, agent: { appId: '9fEGAmn6N2vt' } },
+						undefined,
+						undefined,
+						i,
+					);
 
 					returnData.push({ json: (response as any).body ?? response, pairedItem: i });
 					continue;
