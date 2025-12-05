@@ -62,136 +62,30 @@ export class SolapiTrigger implements INodeType {
 		loadOptions: {
 			async getCommerceHooks(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
 				try {
-					const res = (await solapiApiRequest(
+					const res = await solapiApiRequest(
 						this,
 						'GET',
 						'/commerce/v1/hooks',
 						undefined,
 						{ noWebhookSetup: true, actionId: 'EXTERNAL-WEBHOOK', limit: 500 },
-					)) as { list?: Array<{ hookId?: string; name?: string }> };
-					const list = (res as any)?.list || [];
-					return list.map((h: any) => ({ name: h.name || h.hookId, value: h.hookId }));
-				} catch (e) {
+					);
+
+					let list: any[] = [];
+					if (Array.isArray(res)) {
+						list = res;
+					} else if (res && typeof res === 'object') {
+						list = (res as any).list || (res as any).hookList || (res as any).hooks || [];
+					}
+
+					const options = list.map((h: any) => ({
+						name: h.name || h.hookId || h.id || 'Unknown',
+						value: h.hookId || h.id || '',
+					})).filter((opt: any) => opt.value);
+
+					return options;
+				} catch {
 					return [];
 				}
-			},
-		},
-		webhook: {
-			default: {
-				async checkExists(this: IHookFunctions): Promise<boolean> {
-					const url = this.getNodeWebhookUrl('default');
-					const eventType = (this.getNodeParameter('eventType', 0) as string) || 'commerceAction';
-					const data = this.getWorkflowStaticData('node') as { webhookId?: string; commerceHookId?: string; webhookUrl?: string };
-
-					if (eventType === 'commerceAction') {
-						const hookId = (this.getNodeParameter('hookId', 0) as string) || '';
-						if (hookId && data.commerceHookId === hookId && data.webhookUrl === url) return true;
-						if (!hookId) return false;
-						try{
-							const res = (await solapiApiRequest(
-								this,
-								'GET',
-								`/commerce/v1/hooks/${hookId}`,
-							)) as { webhookUrl?: string; webhook?: { url?: string } };
-							const currentUrl = (res as any)?.webhookUrl || (res as any)?.webhook?.url;
-							if (currentUrl && currentUrl === url) {
-								data.commerceHookId = hookId;
-								data.webhookUrl = url;
-								return true;
-							}
-						} catch {}
-						try {
-							const res = (await solapiApiRequest(
-								this,
-								'GET',
-								'/commerce/v1/hooks',
-								undefined,
-								{ limit: 500 },
-							)) as { list?: Array<{ hookId?: string; webhookUrl?: string; webhook?: { url?: string } }> } | Array<any>;
-							const arr = Array.isArray(res) ? (res as any[]) : (((res as any)?.list as any[]) || []);
-							const found = (arr as any[]).find((h: any) => (h?.hookId === hookId) && ((h?.webhookUrl === url) || (h?.webhook?.url === url)));
-							if (found) {
-								data.commerceHookId = hookId;
-								data.webhookUrl = url;
-								return true;
-							}
-						} catch {}
-						return false;
-					}
-					const eventId = eventType === 'messageReport' ? 'SINGLE-REPORT' : 'GROUP-REPORT';
-					if (data.webhookId && data.webhookUrl === url) return true;
-					try {
-						const res = (await solapiApiRequest(
-							this,
-							'GET',
-							'/webhook/v1/outgoing',
-							undefined,
-							{ limit: 200 },
-						)) as { list?: Array<{ webhookId?: string; url?: string; eventId?: string }> } | Array<any>;
-						const arr = Array.isArray(res) ? (res as any[]) : (((res as any)?.list as any[]) || (res as any)?.webhookList || []);
-						const found = (arr as any[]).find((w: any) => (w?.url === url) && (!w?.eventId || w?.eventId === eventId));
-						if (found?.webhookId) {
-							data.webhookId = found.webhookId;
-							data.webhookUrl = url;
-							return true;
-						}
-					} catch {}
-					return false;
-				},
-				async create(this: IHookFunctions): Promise<boolean> {
-					const url = this.getNodeWebhookUrl('default');
-					const isTemporary = this.getMode && this.getMode() === 'manual';
-					const eventType = (this.getNodeParameter('eventType', 0) as string) || 'commerceAction';
-
-				try {
-					if (eventType === 'commerceAction') {
-						const hookId = this.getNodeParameter('hookId', 0) as string;
-						await solapiApiRequest(
-							this,
-							'POST',
-							`/commerce/v1/hooks/${hookId}/connect-webhook`,
-							{ name: 'n8n', webhookUrl: url, isTemporary },
-						);
-							const data = this.getWorkflowStaticData('node') as { commerceHookId?: string; webhookUrl?: string };
-							data.commerceHookId = hookId;
-							data.webhookUrl = url;
-
-							return true;
-						}
-				const eventId = eventType === 'messageReport' ? 'SINGLE-REPORT' : 'GROUP-REPORT';
-				const response = (await solapiApiRequest(
-					this,
-					'POST',
-					'/webhook/v1/outgoing',
-					{ eventId, url, name: 'n8n', isTemporary },
-				)) as { webhookId?: string };
-						const data = this.getWorkflowStaticData('node') as { webhookId?: string; webhookUrl?: string };
-						data.webhookId = (response as any).webhookId || '';
-						data.webhookUrl = url;
-
-						return true;
-					} catch (e) {
-						throw new NodeOperationError(this.getNode(), `Failed to create Solapi webhook: ${(e as any)?.message || 'unknown error'}`);
-					}
-				},
-				async delete(this: IHookFunctions): Promise<boolean> {
-				const data = this.getWorkflowStaticData('node') as { webhookId?: string; commerceHookId?: string };
-				if (data.commerceHookId) {
-					await solapiApiRequest(
-						this,
-						'POST',
-						`/commerce/v1/hooks/${data.commerceHookId}/disconnect-webhook`,
-					);
-				}
-				if (data.webhookId) {
-					await solapiApiRequest(
-						this,
-						'DELETE',
-						`/webhook/v1/outgoing/${data.webhookId}`,
-					);
-					}
-					return true;
-				},
 			},
 		},
 	};
@@ -200,42 +94,19 @@ export class SolapiTrigger implements INodeType {
 		default: {
 			async checkExists(this: IHookFunctions): Promise<boolean> {
 				const url = this.getNodeWebhookUrl('default');
-				const eventType = (this.getNodeParameter('eventType', 0) as string) || 'commerceAction';
+				const eventType = this.getNodeParameter('eventType', 'commerceAction') as string;
 				const data = this.getWorkflowStaticData('node') as { webhookId?: string; commerceHookId?: string; webhookUrl?: string };
 
 				if (eventType === 'commerceAction') {
-					const hookId = (this.getNodeParameter('hookId', 0) as string) || '';
-					if (hookId && data.commerceHookId === hookId && data.webhookUrl === url) return true;
-					if (!hookId) return false;
-					try {
-						const res = (await solapiApiRequest(
-							this,
-							'GET',
-							`/commerce/v1/hooks/${hookId}`,
-						)) as { webhookUrl?: string; webhook?: { url?: string } };
-						const currentUrl = (res as any)?.webhookUrl || (res as any)?.webhook?.url;
-						if (currentUrl && currentUrl === url) {
-							data.commerceHookId = hookId;
-							data.webhookUrl = url;
-							return true;
-						}
-					} catch {}
-					try {
-						const res = (await solapiApiRequest(
-							this,
-							'GET',
-							'/commerce/v1/hooks',
-							undefined,
-							{ limit: 500 },
-						)) as { list?: Array<{ hookId?: string; webhookUrl?: string; webhook?: { url?: string } }> } | Array<any>;
-						const arr = Array.isArray(res) ? (res as any[]) : (((res as any)?.list as any[]) || []);
-						const found = (arr as any[]).find((h: any) => (h?.hookId === hookId) && ((h?.webhookUrl === url) || (h?.webhook?.url === url)));
-						if (found) {
-							data.commerceHookId = hookId;
-							data.webhookUrl = url;
-							return true;
-						}
-					} catch {}
+					const hookId = this.getNodeParameter('hookId', '') as string;
+					// 캐시된 데이터로 빠르게 확인
+					if (hookId && data.commerceHookId === hookId && data.webhookUrl === url) {
+						return true;
+					}
+					if (!hookId) {
+						return false;
+					}
+
 					return false;
 				}
 				const eventId = eventType === 'messageReport' ? 'SINGLE-REPORT' : 'GROUP-REPORT';
@@ -261,11 +132,11 @@ export class SolapiTrigger implements INodeType {
 			async create(this: IHookFunctions): Promise<boolean> {
 				const url = this.getNodeWebhookUrl('default');
 				const isTemporary = this.getMode && this.getMode() === 'manual';
-				const eventType = (this.getNodeParameter('eventType', 0) as string) || 'commerceAction';
+				const eventType = this.getNodeParameter('eventType', 'commerceAction') as string;
 
 				try {
 					if (eventType === 'commerceAction') {
-						const hookId = this.getNodeParameter('hookId', 0) as string;
+						const hookId = this.getNodeParameter('hookId', '') as string;
 						await solapiApiRequest(
 							this,
 							'POST',
@@ -275,7 +146,6 @@ export class SolapiTrigger implements INodeType {
 						const data = this.getWorkflowStaticData('node') as { commerceHookId?: string; webhookUrl?: string };
 						data.commerceHookId = hookId;
 						data.webhookUrl = url;
-
 						return true;
 					}
 					const eventId = eventType === 'messageReport' ? 'SINGLE-REPORT' : 'GROUP-REPORT';
@@ -288,7 +158,6 @@ export class SolapiTrigger implements INodeType {
 					const data = this.getWorkflowStaticData('node') as { webhookId?: string; webhookUrl?: string };
 					data.webhookId = (response as any).webhookId || '';
 					data.webhookUrl = url;
-
 					return true;
 				} catch (e) {
 					throw new NodeOperationError(this.getNode(), `Failed to create Solapi webhook: ${(e as any)?.message || 'unknown error'}`);
@@ -297,18 +166,22 @@ export class SolapiTrigger implements INodeType {
 			async delete(this: IHookFunctions): Promise<boolean> {
 				const data = this.getWorkflowStaticData('node') as { webhookId?: string; commerceHookId?: string };
 				if (data.commerceHookId) {
-					await solapiApiRequest(
-						this,
-						'POST',
-						`/commerce/v1/hooks/${data.commerceHookId}/disconnect-webhook`,
-					);
+					try {
+						await solapiApiRequest(
+							this,
+							'POST',
+							`/commerce/v1/hooks/${data.commerceHookId}/disconnect-webhook`,
+						);
+					} catch {}
 				}
 				if (data.webhookId) {
-					await solapiApiRequest(
-						this,
-						'DELETE',
-						`/webhook/v1/outgoing/${data.webhookId}`,
-					);
+					try {
+						await solapiApiRequest(
+							this,
+							'DELETE',
+							`/webhook/v1/outgoing/${data.webhookId}`,
+						);
+					} catch {}
 				}
 				return true;
 			},
@@ -327,5 +200,3 @@ export class SolapiTrigger implements INodeType {
 		return { workflowData: [items] };
 	}
 }
-
-

@@ -22,10 +22,19 @@ export async function solapiApiRequest(
 	headers?: IDataObject,
 	itemIndex?: number,
 ): Promise<unknown> {
-	const authType: string =
-		(typeof itemIndex === 'number'
-			? ctx.getNodeParameter?.('authentication', itemIndex)
-			: ctx.getCurrentNodeParameter?.('authentication')) || 'oAuth2';
+	let authType: string = 'oAuth2';
+	try {
+		if (typeof itemIndex === 'number') {
+			authType = ctx.getNodeParameter?.('authentication', itemIndex) || 'oAuth2';
+		} else if (ctx.getCurrentNodeParameter) {
+			authType = ctx.getCurrentNodeParameter?.('authentication') || 'oAuth2';
+		} else if (ctx.getNodeParameter) {
+			authType = ctx.getNodeParameter?.('authentication', 'oAuth2') as string;
+		}
+	} catch {
+		// 파라미터를 가져오는 데 실패하면 기본값 사용
+		authType = 'oAuth2';
+	}
 
 	const requestHeaders: IDataObject = {
 		Accept: 'application/json',
